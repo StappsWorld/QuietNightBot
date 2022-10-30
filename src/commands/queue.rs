@@ -186,7 +186,7 @@ pub async fn run(ctx: &Context, interaction: &ApplicationCommandInteraction) {
             };
             let mix_command = format!(
                 "ffmpeg -stream_loop -1 -i \"{}\" -i \"{}\"  -filter_complex \"[0:a]volume=0.75[a0];[1:a]volume=1[a1];[a0][a1]amerge[a]\" -map \"[a]\" -ac 2 \"{}\"",
-                source_unmixed_path, rain_path, source_path_str
+                rain_path, source_unmixed_path, source_path_str
             );
             match std::process::Command::new("sh")
                 .arg("-c")
