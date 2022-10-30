@@ -169,9 +169,24 @@ pub async fn run(ctx: &Context, interaction: &ApplicationCommandInteraction) {
                 }
             }
 
+            let rain_path = match std::env::var("RAIN_PATH") {
+                Ok(path) => path,
+                Err(e) => {
+                    eprintln!("Failed to get RAIN_PATH: {}", e);
+                    crate::util::respond_to_interaction(
+                        interaction,
+                        &ctx.http,
+                        true,
+                        "Internal Error... Please try again later",
+                    )
+                    .await;
+
+                    return;
+                }
+            };
             let mix_command = format!(
-                "ffmpeg -stream_loop -1 -i ./rain.m4a -i \"{}\"  -filter_complex \"[0:a]volume=0.75[a0];[1:a]volume=1[a1];[a0][a1]amerge[a]\" -map \"[a]\" -ac 2 \"{}\"",
-                source_unmixed_path, source_path_str
+                "ffmpeg -stream_loop -1 -i \"{}\" -i \"{}\"  -filter_complex \"[0:a]volume=0.75[a0];[1:a]volume=1[a1];[a0][a1]amerge[a]\" -map \"[a]\" -ac 2 \"{}\"",
+                source_unmixed_path, rain_path, source_path_str
             );
             match std::process::Command::new("sh")
                 .arg("-c")
