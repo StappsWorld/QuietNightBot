@@ -1,9 +1,9 @@
 version: '3.7'
 
 services:
-  jenkins_bot:
-    container_name: jenkins_bot
-    image: stappsworldreport/jenkins_bot:latest
+  quiet_night_bot:
+    container_name: quiet_night_bot
+    image: stappsworldreport/quiet_night_bot:latest
     restart: unless-stopped
     environment:
       DISCORD_TOKEN: TOKEN_HERE
