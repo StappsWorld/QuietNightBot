@@ -1,0 +1,10 @@
+version: '3.7'
+
+services:
+  jenkins_bot:
+    container_name: jenkins_bot
+    image: stappsworldreport/jenkins_bot:latest
+    restart: unless-stopped
+    environment:
+      DISCORD_TOKEN: TOKEN_HERE
+      RAIN_PATH: PATH TO RAIN MP3
