@@ -32,3 +32,23 @@ pub async fn respond_to_interaction<S: ToString>(
         }
     };
 }
+
+pub async fn follow_up_interaction<S: ToString>(
+    interaction: &ApplicationCommandInteraction,
+    http: &Arc<Http>,
+    ephemeral: bool,
+    content: S,
+) -> Option<()> {
+    match interaction
+        .create_followup_message(http, |create| {
+            create.content(content.to_string()).ephemeral(ephemeral)
+        })
+        .await
+    {
+        Ok(_) => return Some(()),
+        Err(e) => {
+            eprintln!("Cannot respond to slash command: {}", e);
+            return None;
+        }
+    };
+}

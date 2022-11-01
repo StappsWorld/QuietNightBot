@@ -113,12 +113,18 @@ pub async fn run(ctx: &Context, interaction: &ApplicationCommandInteraction) {
         .clone();
 
     if let Some(handler_lock) = manager.get(guild_id) {
-        let mut handler = handler_lock.lock().await;
-
+        crate::util::respond_to_interaction(
+            interaction,
+            &ctx.http,
+            true,
+            "Beginning to queue song",
+        )
+        .await;
         let source_path_str = format!("./queue/{}.mp3", video_id);
         let source_path = std::path::Path::new(&source_path_str);
 
         if !source_path.exists() {
+            crate::util::follow_up_interaction(interaction, &ctx.http, true, "Encoding song").await;
             // Make queue folder if it doesn't exist
             let queue_folder = std::path::Path::new("queue");
             if !queue_folder.exists() {
@@ -142,7 +148,7 @@ pub async fn run(ctx: &Context, interaction: &ApplicationCommandInteraction) {
                             "Failed to download video: {}",
                             String::from_utf8_lossy(&output.stderr)
                         );
-                        crate::util::respond_to_interaction(
+                        crate::util::follow_up_interaction(
                             interaction,
                             &ctx.http,
                             true,
@@ -157,7 +163,7 @@ pub async fn run(ctx: &Context, interaction: &ApplicationCommandInteraction) {
                     eprintln!("failed to execute yt-dlp process: {:?}", e);
                     eprintln!("Command: {}", download_command);
 
-                    crate::util::respond_to_interaction(
+                    crate::util::follow_up_interaction(
                         interaction,
                         &ctx.http,
                         true,
@@ -173,7 +179,7 @@ pub async fn run(ctx: &Context, interaction: &ApplicationCommandInteraction) {
                 Ok(path) => path,
                 Err(e) => {
                     eprintln!("Failed to get RAIN_PATH: {}", e);
-                    crate::util::respond_to_interaction(
+                    crate::util::follow_up_interaction(
                         interaction,
                         &ctx.http,
                         true,
@@ -199,7 +205,7 @@ pub async fn run(ctx: &Context, interaction: &ApplicationCommandInteraction) {
                             "Failed to mix audio: {}",
                             String::from_utf8_lossy(&output.stderr)
                         );
-                        crate::util::respond_to_interaction(
+                        crate::util::follow_up_interaction(
                             interaction,
                             &ctx.http,
                             true,
@@ -214,7 +220,7 @@ pub async fn run(ctx: &Context, interaction: &ApplicationCommandInteraction) {
                     eprintln!("failed to spawn ffmpeg to mix audio with rain: {}", e);
                     eprintln!("Command: {}", mix_command);
 
-                    crate::util::respond_to_interaction(
+                    crate::util::follow_up_interaction(
                         interaction,
                         &ctx.http,
                         true,
@@ -240,7 +246,7 @@ pub async fn run(ctx: &Context, interaction: &ApplicationCommandInteraction) {
             Ok(source) => source,
             Err(why) => {
                 eprintln!("Err starting source: {:?}", why);
-                crate::util::respond_to_interaction(
+                crate::util::follow_up_interaction(
                     interaction,
                     &ctx.http,
                     true,
@@ -252,9 +258,10 @@ pub async fn run(ctx: &Context, interaction: &ApplicationCommandInteraction) {
             }
         };
 
+        let mut handler = handler_lock.lock().await;
         handler.enqueue_source(source.into());
 
-        crate::util::respond_to_interaction(
+        crate::util::follow_up_interaction(
             interaction,
             &ctx.http,
             false,
