@@ -258,8 +258,11 @@ pub async fn run(ctx: &Context, interaction: &ApplicationCommandInteraction) {
             }
         };
 
-        let mut handler = handler_lock.lock().await;
-        handler.enqueue_source(source.into());
+        let queue_len = {
+            let mut handler = handler_lock.lock().await;
+            handler.enqueue_source(source.into());
+            handler.queue().len()
+        };
 
         crate::util::follow_up_interaction(
             interaction,
@@ -269,7 +272,7 @@ pub async fn run(ctx: &Context, interaction: &ApplicationCommandInteraction) {
                 "User {} added song {} to queue: position {}",
                 interaction.user.tag(),
                 url,
-                handler.queue().len()
+                queue_len
             ),
         )
         .await;
