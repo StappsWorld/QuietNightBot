@@ -265,7 +265,12 @@ pub async fn run(ctx: &Context, interaction: &ApplicationCommandInteraction) {
             interaction,
             &ctx.http,
             false,
-            format!("Added song to queue: position {}", handler.queue().len()),
+            format!(
+                "User {} added song {} to queue: position {}",
+                interaction.user.tag(),
+                url,
+                handler.queue().len()
+            ),
         )
         .await;
     } else {
