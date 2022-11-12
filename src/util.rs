@@ -7,11 +7,13 @@ use serenity::{
 };
 use songbird::input::Restartable;
 use std::sync::Arc;
+use yt_api::ApiKey;
 
 lazy_static! {
     pub static ref YOUTUBE_URL_REGEX: regex::Regex = regex::Regex::new(
         r"^(?:https?://)?(?:www\.)?(?:youtu\.be/|youtube\.com/(?:embed/|v/|watch\?v=|watch\?.+&v=))(?P<video_id>[\w-]{11})(?:\S+)?$"
-    ).unwrap();
+    ).expect("Failed to compile YouTube URL regex");
+    pub static ref YOUTUBE_API_KEY: ApiKey = ApiKey::new(std::env::var("YOUTUBE_API_KEY").expect("YOUTUBE_API_KEY not set"));
 }
 
 pub async fn respond_to_interaction<S: ToString>(
