@@ -8,3 +8,4 @@ services:
     environment:
       DISCORD_TOKEN: TOKEN_HERE
       RAIN_PATH: PATH TO RAIN MP3
+      YOUTUBE_API_KEY: YOUR YOUTUBE API KEY HERE
