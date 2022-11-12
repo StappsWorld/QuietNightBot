@@ -29,6 +29,7 @@ impl EventHandler for Handler {
                 "skip" => commands::skip::run(&ctx, &command).await,
                 "stop" => commands::stop::run(&ctx, &command).await,
                 "unmute" => commands::unmute::run(&ctx, &command).await,
+                "search" => commands::search::run(&ctx, &command).await,
                 _ => {
                     if let Err(why) = command
                         .create_interaction_response(&ctx.http, |response| {
@@ -64,6 +65,7 @@ impl EventHandler for Handler {
                         .create_application_command(|command| commands::skip::register(command))
                         .create_application_command(|command| commands::stop::register(command))
                         .create_application_command(|command| commands::unmute::register(command))
+                        .create_application_command(|command| commands::search::register(command))
                 })
                 .await
             {
