@@ -50,7 +50,7 @@ ENV UID=$UID
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt update -y
-RUN apt install -y wget python3 python3-pip ffmpeg
+RUN apt install -y wget python3 python3-pip ffmpeg libcurl3 curl
 RUN wget -qO /usr/local/bin/yt-dlp https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp
 RUN chmod a+rx /usr/local/bin/yt-dlp
 
