@@ -6,7 +6,9 @@ use serenity::{
     model::prelude::interaction::application_command::ApplicationCommandInteraction,
 };
 use songbird::input::Restartable;
+use std::collections::HashMap;
 use std::sync::Arc;
+use tokio::time::timeout;
 use yt_api::ApiKey;
 
 lazy_static! {
@@ -14,6 +16,7 @@ lazy_static! {
         r"^(?:https?://)?(?:www\.)?(?:youtu\.be/|youtube\.com/(?:embed/|v/|watch\?v=|watch\?.+&v=))(?P<video_id>[\w-]{11})(?:\S+)?$"
     ).expect("Failed to compile YouTube URL regex");
     pub static ref YOUTUBE_API_KEY: ApiKey = ApiKey::new(std::env::var("YOUTUBE_API_KEY").expect("YOUTUBE_API_KEY not set"));
+    pub static ref RAIN_ENABLED: Arc<Mutex<HashMap<String, bool>>> = Arc::new(Mutex::new(HashMap::new()));
 }
 
 pub async fn respond_to_interaction<S: ToString>(
@@ -161,22 +164,27 @@ pub async fn play_song(ctx: &Context, interaction: &ApplicationCommandInteractio
 
     crate::util::respond_to_interaction(interaction, &ctx.http, true, "Beginning to queue song")
         .await;
-    let source_path_str = format!("./queue/{}.mp3", video_id);
-    let source_path = std::path::Path::new(&source_path_str);
 
-    if !source_path.exists() {
-        crate::util::follow_up_interaction(interaction, &ctx.http, true, "Encoding song").await;
+    let rain_enabled = match crate::util::RAIN_ENABLED.try_lock() {
+        Ok(map) => *map.get(&guild_id.to_string()).unwrap_or(&false),
+        Err(e) => {
+            eprintln!("Failed to lock RAIN_ENABLED map with error {}", e);
+            false
+        }
+    };
+    let norain_source_path_str = format!("./queue/norain_{}.mp3", video_id);
+    let norain_source_path = std::path::Path::new(&norain_source_path_str);
+
+    if !norain_source_path.exists() {
         // Make queue folder if it doesn't exist
         let queue_folder = std::path::Path::new("queue");
         if !queue_folder.exists() {
             std::fs::create_dir(queue_folder).expect("Failed to create queue folder");
         }
 
-        // Download/mix the video/audio into a single source.
-        let source_unmixed_path = format!("./queue/unmixed_{}.mp3", video_id);
         let download_command = format!(
             "yt-dlp -f 'ba' -x --audio-format mp3 \'{}\' -o \'{}\'",
-            url, source_unmixed_path
+            url, norain_source_path_str
         );
         match std::process::Command::new("sh")
             .arg("-c")
@@ -215,37 +223,62 @@ pub async fn play_song(ctx: &Context, interaction: &ApplicationCommandInteractio
                 return;
             }
         }
+    }
 
-        let rain_path = match std::env::var("RAIN_PATH") {
-            Ok(path) => path,
-            Err(e) => {
-                eprintln!("Failed to get RAIN_PATH: {}", e);
-                crate::util::follow_up_interaction(
-                    interaction,
-                    &ctx.http,
-                    true,
-                    "Internal Error... Please try again later",
-                )
-                .await;
+    let audio_source = if rain_enabled {
+        let rain_source_path_str = format!("./queue/{}.mp3", video_id);
+        let rain_source_path = std::path::Path::new(&rain_source_path_str);
 
-                return;
-            }
-        };
-        let mix_command = format!(
-                "ffmpeg -stream_loop -1 -i \"{}\" -i \"{}\"  -filter_complex \"[0:a]volume=0.75[a0];[1:a]volume=1[a1];[a0][a1]amerge[a]\" -map \"[a]\" -ac 2 \"{}\"",
-                rain_path, source_unmixed_path, source_path_str
-            );
-        match std::process::Command::new("sh")
-            .arg("-c")
-            .arg(&mix_command)
-            .output()
-        {
-            Ok(output) => {
-                if !output.status.success() {
-                    eprintln!(
-                        "Failed to mix audio: {}",
-                        String::from_utf8_lossy(&output.stderr)
-                    );
+        if !rain_source_path.exists() {
+            crate::util::follow_up_interaction(interaction, &ctx.http, true, "Encoding song").await;
+
+            // Download/mix the video/audio into a single source.
+
+            let rain_path = match std::env::var("RAIN_PATH") {
+                Ok(path) => path,
+                Err(e) => {
+                    eprintln!("Failed to get RAIN_PATH: {}", e);
+                    crate::util::follow_up_interaction(
+                        interaction,
+                        &ctx.http,
+                        true,
+                        "Internal Error... Please try again later",
+                    )
+                    .await;
+
+                    return;
+                }
+            };
+            let mix_command = format!(
+                    "ffmpeg -stream_loop -1 -i \"{}\" -i \"{}\"  -filter_complex \"[0:a]volume=0.75[a0];[1:a]volume=1[a1];[a0][a1]amerge[a]\" -map \"[a]\" -ac 2 \"{}\"",
+                    rain_path, norain_source_path_str, rain_source_path_str
+                );
+            match std::process::Command::new("sh")
+                .arg("-c")
+                .arg(&mix_command)
+                .output()
+            {
+                Ok(output) => {
+                    if !output.status.success() {
+                        eprintln!(
+                            "Failed to mix audio: {}",
+                            String::from_utf8_lossy(&output.stderr)
+                        );
+                        crate::util::follow_up_interaction(
+                            interaction,
+                            &ctx.http,
+                            true,
+                            "Error mixing audio",
+                        )
+                        .await;
+
+                        return;
+                    }
+                }
+                Err(e) => {
+                    eprintln!("failed to spawn ffmpeg to mix audio with rain: {}", e);
+                    eprintln!("Command: {}", mix_command);
+
                     crate::util::follow_up_interaction(
                         interaction,
                         &ctx.http,
@@ -257,33 +290,15 @@ pub async fn play_song(ctx: &Context, interaction: &ApplicationCommandInteractio
                     return;
                 }
             }
-            Err(e) => {
-                eprintln!("failed to spawn ffmpeg to mix audio with rain: {}", e);
-                eprintln!("Command: {}", mix_command);
-
-                crate::util::follow_up_interaction(
-                    interaction,
-                    &ctx.http,
-                    true,
-                    "Error mixing audio",
-                )
-                .await;
-
-                return;
-            }
         }
-
-        match std::fs::remove_file(source_unmixed_path) {
-            Ok(_) => {}
-            Err(e) => {
-                eprintln!("Failed to remove unmixed source file: {}", e);
-            }
-        }
-    }
+        rain_source_path_str
+    } else {
+        norain_source_path_str
+    };
 
     // Here, we use lazy restartable sources to make sure that we don't pay
     // for decoding, playback on tracks which aren't actually live yet.
-    let source = match Restartable::ffmpeg(source_path_str, true).await {
+    let source = match Restartable::ffmpeg(audio_source, true).await {
         Ok(source) => source,
         Err(why) => {
             eprintln!("Err starting source: {:?}", why);
@@ -300,7 +315,22 @@ pub async fn play_song(ctx: &Context, interaction: &ApplicationCommandInteractio
     };
 
     let queue_len = {
-        let mut handler = handler_lock.lock().await;
+        let mut handler =
+            match timeout(std::time::Duration::from_secs(5), handler_lock.lock()).await {
+                Ok(handler) => handler,
+                Err(e) => {
+                    eprintln!("Failed to lock handler with error {}", e);
+                    crate::util::follow_up_interaction(
+                        interaction,
+                        &ctx.http,
+                        true,
+                        "There was an error adding the song to the queue. Please try again later.",
+                    )
+                    .await;
+
+                    return;
+                }
+            };
         handler.enqueue_source(source.into());
         handler.queue().len()
     };
@@ -310,10 +340,11 @@ pub async fn play_song(ctx: &Context, interaction: &ApplicationCommandInteractio
         &ctx.http,
         false,
         format!(
-            "User {} added song {} to queue: position {}",
+            "User {} added song {} to queue: position {} (rain enabled: {})",
             interaction.user.tag(),
             url,
-            queue_len
+            queue_len,
+            rain_enabled
         ),
     )
     .await;

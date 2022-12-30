@@ -1,7 +1,7 @@
 extern crate lazy_static;
 
 use dotenv::dotenv;
-use serenity::model::application::interaction::{Interaction, InteractionResponseType};
+use serenity::model::application::interaction::Interaction;
 use serenity::model::prelude::*;
 use serenity::prelude::*;
 use serenity::{async_trait, client::Client};
@@ -28,19 +28,19 @@ impl EventHandler for Handler {
                 "stop" => commands::stop::run(&ctx, &command).await,
                 "unmute" => commands::unmute::run(&ctx, &command).await,
                 "search" => commands::search::run(&ctx, &command).await,
+                "setrain" => commands::setrain::run(&ctx, &command).await,
                 _ => {
-                    if let Err(why) = command
-                        .create_interaction_response(&ctx.http, |response| {
-                            response
-                                .kind(InteractionResponseType::ChannelMessageWithSource)
-                                .interaction_response_data(|message| {
-                                    message.content("Unknown command")
-                                })
-                        })
-                        .await
+                    match crate::util::respond_to_interaction(
+                        &command,
+                        &ctx.http,
+                        true,
+                        "Unknown command",
+                    )
+                    .await
                     {
-                        eprintln!("Cannot respond to unknown slash command: {}", why);
-                    }
+                        Some(_) => (),
+                        None => eprintln!("Failed to respond to unknown interaction"),
+                    };
                 }
             },
             _ => (),
@@ -55,6 +55,13 @@ impl EventHandler for Handler {
         println!("{} is connected!", ready.user.name);
 
         let guilds = ctx.cache.guilds();
+        let mut rain_enabled_map = match crate::util::RAIN_ENABLED.try_lock() {
+            Ok(map) => map,
+            Err(e) => {
+                eprintln!("Failed to lock RAIN_ENABLED map with error {}", e);
+                return;
+            }
+        };
 
         for guild_id in guilds {
             match guild_id
@@ -69,6 +76,7 @@ impl EventHandler for Handler {
                         .create_application_command(|command| commands::stop::register(command))
                         .create_application_command(|command| commands::unmute::register(command))
                         .create_application_command(|command| commands::search::register(command))
+                        .create_application_command(|command| commands::setrain::register(command))
                 })
                 .await
             {
@@ -78,6 +86,7 @@ impl EventHandler for Handler {
                     guild_id, why
                 ),
             }
+            rain_enabled_map.insert(guild_id.to_string(), true);
         }
     }
 }
