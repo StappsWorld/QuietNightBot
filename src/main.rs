@@ -2,16 +2,14 @@ extern crate lazy_static;
 
 use dotenv::dotenv;
 use serenity::model::application::interaction::{Interaction, InteractionResponseType};
-use serenity::model::gateway::Ready;
+use serenity::model::prelude::*;
 use serenity::prelude::*;
-use serenity::{
-    async_trait,
-    client::{Client, Context, EventHandler},
-};
+use serenity::{async_trait, client::Client};
 use songbird::SerenityInit;
 use std::env;
 
 pub mod commands;
+pub mod events;
 pub mod util;
 
 struct Handler;
@@ -19,8 +17,8 @@ struct Handler;
 #[async_trait]
 impl EventHandler for Handler {
     async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
-        if let Interaction::ApplicationCommand(command) = interaction {
-            match command.data.name.as_str() {
+        match interaction {
+            Interaction::ApplicationCommand(command) => match command.data.name.as_str() {
                 "join" => commands::join::run(&ctx, &command).await,
                 "leave" => commands::leave::run(&ctx, &command).await,
                 "mute" => commands::mute::run(&ctx, &command).await,
@@ -44,8 +42,13 @@ impl EventHandler for Handler {
                         eprintln!("Cannot respond to unknown slash command: {}", why);
                     }
                 }
-            };
+            },
+            _ => (),
         }
+    }
+
+    async fn voice_state_update(&self, ctx: Context, old: Option<VoiceState>, new: VoiceState) {
+        crate::events::voice_state_update::voice_state_update(ctx, old, new).await;
     }
 
     async fn ready(&self, ctx: Context, ready: Ready) {
