@@ -29,6 +29,7 @@ impl EventHandler for Handler {
                 "unmute" => commands::unmute::run(&ctx, &command).await,
                 "search" => commands::search::run(&ctx, &command).await,
                 "setrain" => commands::setrain::run(&ctx, &command).await,
+                "setvolume" => commands::setvolume::run(&ctx, &command).await,
                 _ => {
                     match crate::util::respond_to_interaction(
                         &command,

@@ -8,3 +8,4 @@ pub mod setrain;
 pub mod skip;
 pub mod stop;
 pub mod unmute;
+pub mod setvolume;
